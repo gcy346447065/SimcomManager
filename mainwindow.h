@@ -33,15 +33,17 @@ public:
 private slots:
     void on_pushButton_Connect_clicked();
     void on_pushButton_Disconnect_clicked();
+    void on_pushButton_GetImeiList_clicked();
+    void on_tableWidget_cellDoubleClicked(int row, int column);
+    void on_pushButton_UpdataImeiData_clicked();
+
     void slotConnected();
     void slotDisconnected();
     void slotDataReceived();
     void slotHeaderClicked(int);
 
     void findInTableWidget(QString string);
-
-    void on_pushButton_GetImeiList_clicked();
-    void on_tableWidget_cellDoubleClicked(int row, int column);
+    void UpdataImeiDataWithRow(int row);
 
 private:
     Ui::MainWindow *ui;

@@ -69,6 +69,7 @@ void MainWindow::uiShowConnectionStatus(bool connected)
     ui->lineEdit_Mysql->setEnabled(!connected);
     ui->pushButton_Disconnect->setEnabled(connected);
     ui->pushButton_GetImeiList->setEnabled(connected);
+    ui->pushButton_UpdataImeiData->setEnabled(connected);
     ui->tableWidget->setEnabled(connected);
 
     return;
@@ -161,6 +162,7 @@ void MainWindow::on_pushButton_GetImeiList_clicked()
         else
         {
             ui->tableWidget->setRowCount(0);//clear the table
+            ui->label_InProcess_GetImeiList->setText("Geting");
         }
 
         while(sql_query.next())
@@ -176,6 +178,7 @@ void MainWindow::on_pushButton_GetImeiList_clicked()
             ui->tableWidget->item(rowNum, 1)->setForeground(Qt::blue);
         }
         ui->tableWidget->resizeColumnsToContents();
+        ui->label_InProcess_GetImeiList->setText("");
     }
 
     return;
@@ -277,6 +280,21 @@ int MainWindow::manager_imeiData(const void *msg)
 
     uiShowImeiData(imei, online_offline, timestamp, longitude, latitude, speed, course);
 
+    qDebug() << ntohs(rsp->header.signature) << (unsigned int)(rsp->header.cmd) << (unsigned int)(rsp->header.seq) << ntohs(rsp->header.length);
+    if(rsp->header.seq == (char)0xff)
+    {
+        //updata imei data loop
+        int rowNum = ui->tableWidget->findItems(imei, Qt::MatchExactly).first()->row();
+        if(rowNum + 1 < ui->tableWidget->rowCount())
+        {
+            UpdataImeiDataWithRow(rowNum + 1);
+        }
+        else
+        {
+            ui->label_InProcess_UpdataImeiData->setText("");
+        }
+    }
+
     return 0;
 }
 
@@ -359,5 +377,25 @@ void MainWindow::on_tableWidget_cellDoubleClicked(int row, int column)
     {
         EventDialog event(this, imeiString, data_base);
         event.exec();
+    }
+}
+
+void MainWindow::UpdataImeiDataWithRow(int row)
+{
+    QString imeiString = ui->tableWidget->item(row, 0)->text(); //get imei string
+    qDebug() << "UpdataImeiDataWithRow:" << imeiString;
+
+    QByteArray array_header = QByteArray::fromHex("aa6602ff000f"); //set seq at 0xff for updata imei data loop
+    QByteArray array_imei = QByteArray::fromHex(imeiString.toLatin1().toHex());
+
+    tcpSocket->write(array_header + array_imei);
+}
+
+void MainWindow::on_pushButton_UpdataImeiData_clicked()
+{
+    if(ui->tableWidget->rowCount() != 0)
+    {
+        UpdataImeiDataWithRow(0);
+        ui->label_InProcess_UpdataImeiData->setText("Updating");
     }
 }

@@ -137,20 +137,20 @@
      <string>120.25.157.233:3306</string>
     </property>
    </widget>
-   <widget class="QPushButton" name="pushButton_GetImeiList">
+   <widget class="QPushButton" name="pushButton_UpdataImeiData">
     <property name="enabled">
      <bool>false</bool>
     </property>
     <property name="geometry">
      <rect>
-      <x>750</x>
+      <x>720</x>
       <y>20</y>
-      <width>91</width>
+      <width>111</width>
       <height>23</height>
      </rect>
     </property>
     <property name="text">
-     <string>Get imei list</string>
+     <string>Updata imei data</string>
     </property>
    </widget>
    <widget class="QLabel" name="label">
@@ -177,6 +177,51 @@
     </property>
     <property name="text">
      <string>Mysql(ip:port)</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="pushButton_GetImeiList">
+    <property name="enabled">
+     <bool>false</bool>
+    </property>
+    <property name="geometry">
+     <rect>
+      <x>620</x>
+      <y>20</y>
+      <width>91</width>
+      <height>23</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Get imei list</string>
+    </property>
+   </widget>
+   <widget class="QLabel" name="label_InProcess_GetImeiList">
+    <property name="geometry">
+     <rect>
+      <x>637</x>
+      <y>43</y>
+      <width>71</width>
+      <height>16</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string/>
+    </property>
+   </widget>
+   <widget class="QLabel" name="label_InProcess_UpdataImeiData">
+    <property name="enabled">
+     <bool>true</bool>
+    </property>
+    <property name="geometry">
+     <rect>
+      <x>747</x>
+      <y>43</y>
+      <width>71</width>
+      <height>16</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string/>
     </property>
    </widget>
   </widget>
