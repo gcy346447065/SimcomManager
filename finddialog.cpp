@@ -34,8 +34,6 @@ void FindDialog::on_pushButton_ok_clicked()
 
         this->close();
     }
-
-    //findString(QString("hehe"));
 }
 
 void FindDialog::on_pushButton_cancel_clicked()

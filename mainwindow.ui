@@ -10,7 +10,7 @@
     <x>0</x>
     <y>0</y>
     <width>860</width>
-    <height>473</height>
+    <height>502</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -26,8 +26,11 @@
       <x>20</x>
       <y>60</y>
       <width>820</width>
-      <height>350</height>
+      <height>391</height>
      </rect>
+    </property>
+    <property name="contextMenuPolicy">
+     <enum>Qt::CustomContextMenu</enum>
     </property>
     <property name="editTriggers">
      <set>QAbstractItemView::NoEditTriggers</set>
@@ -48,6 +51,11 @@
     <column>
      <property name="text">
       <string>online_offline</string>
+     </property>
+    </column>
+    <column>
+     <property name="text">
+      <string>version</string>
      </property>
     </column>
     <column>
@@ -222,6 +230,28 @@
     </property>
     <property name="text">
      <string/>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="pushButton_Login">
+    <property name="enabled">
+     <bool>false</bool>
+    </property>
+    <property name="geometry">
+     <rect>
+      <x>540</x>
+      <y>20</y>
+      <width>75</width>
+      <height>23</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Login</string>
+    </property>
+    <property name="autoDefault">
+     <bool>false</bool>
+    </property>
+    <property name="default">
+     <bool>false</bool>
     </property>
    </widget>
   </widget>

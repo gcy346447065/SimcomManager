@@ -7,9 +7,21 @@
 #include <QDebug>
 #include <QDateTime>
 #include <QRegExp>
+#include <QMessageBox>
+
+#define STR_UPDATA_IMEI "Updata the specify imei data"
+#define STR_GET_LOG     "Get log"
+#define STR_GET_433     "Get 433"
+#define STR_GET_GSM     "Get GSM"
+#define STR_GET_GPS     "Get GPS"
+#define STR_GET_SETTING "Get setting"
+#define STR_GET_BATTERY "Get battery"
+#define STR_REBOOT      "Reboot"
+#define STR_UPGRADE     "Upgrade"
 
 QString gDefaultServer = QString("120.25.157.233:9898");
 QString gDefaultMysql = QString("120.25.157.233:3306");
+QString gCurrentImeiString;
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
@@ -68,9 +80,14 @@ void MainWindow::uiShowConnectionStatus(bool connected)
     ui->lineEdit_Server->setEnabled(!connected);
     ui->lineEdit_Mysql->setEnabled(!connected);
     ui->pushButton_Disconnect->setEnabled(connected);
-    ui->pushButton_GetImeiList->setEnabled(connected);
-    ui->pushButton_UpdataImeiData->setEnabled(connected);
+    ui->pushButton_Login->setEnabled(connected);
+    ui->pushButton_GetImeiList->setEnabled(false);
+    ui->pushButton_UpdataImeiData->setEnabled(false);
     ui->tableWidget->setEnabled(connected);
+
+    ui->tableWidget->setRowCount(0);
+    ui->label_InProcess_GetImeiList->setText("");
+    ui->label_InProcess_UpdataImeiData->setText("");
 
     return;
 }
@@ -143,6 +160,12 @@ void MainWindow::on_pushButton_Disconnect_clicked()
     return;
 }
 
+void MainWindow::on_pushButton_Login_clicked()
+{
+    QByteArray array_header = QByteArray::fromHex("aa6601110000"); //set seq at 0xff for updata imei data loop
+    tcpSocket->write(array_header);
+}
+
 void MainWindow::on_pushButton_GetImeiList_clicked()
 {
     sql_query = QSqlQuery(data_base);
@@ -209,18 +232,22 @@ void MainWindow::slotHeaderClicked(int column)
 
 int MainWindow::manager_login(const void *msg)
 {
-    const MSG_LOGIN_RSP *rsp = (const MSG_LOGIN_RSP *)msg;
-    if(ntohs(rsp->length) != sizeof(MSG_LOGIN_REQ) - MSG_HEADER_LEN)
+    const MANAGER_MSG_LOGIN_RSP *rsp = (const MANAGER_MSG_LOGIN_RSP *)msg;
+    if(ntohs(rsp->length) != sizeof(MANAGER_MSG_LOGIN_REQ) - MANAGER_MSG_HEADER_LEN)
     {
         qDebug("login message length not enough");
         return -1;
     }
 
     qDebug("get manager login response");
+
+    ui->pushButton_Login->setEnabled(false);
+    ui->pushButton_GetImeiList->setEnabled(true);
+    ui->pushButton_UpdataImeiData->setEnabled(true);
     return 0;
 }
 
-void MainWindow::uiShowImeiData(const char *imei, char online_offline, int timestamp, float longitude, float latitude, char speed, short course)
+void MainWindow::uiShowImeiData(const char *imei, char online_offline, int version, int timestamp, float longitude, float latitude, char speed, short course)
 {
     //qDebug("%d,%d,%f,%f,%d,%d",online_offline, timestamp, longitude, latitude, speed, course);
     QDateTime dataTime = QDateTime::fromTime_t(timestamp);
@@ -247,11 +274,15 @@ void MainWindow::uiShowImeiData(const char *imei, char online_offline, int times
             ui->tableWidget->item(rowNum, 2)->setForeground(Qt::red);
         }
 
-        ui->tableWidget->setItem(rowNum, 3, new QTableWidgetItem(dataTimeString));
-        ui->tableWidget->setItem(rowNum, 4, new QTableWidgetItem(QString::number(longitude, 'f', 6)));
-        ui->tableWidget->setItem(rowNum, 5, new QTableWidgetItem(QString::number(latitude, 'f', 6)));
-        ui->tableWidget->setItem(rowNum, 6, new QTableWidgetItem(QString("%1").arg((int)speed)));
-        ui->tableWidget->setItem(rowNum, 7, new QTableWidgetItem(QString("%1").arg(course)));
+        int version_a = version / 65536;
+        int version_b = (version % 65536) / 256;
+        int version_c = version % 256;
+        ui->tableWidget->setItem(rowNum, 3, new QTableWidgetItem(QString("%1.%2.%3").arg(version_a).arg(version_b).arg(version_c)));
+        ui->tableWidget->setItem(rowNum, 4, new QTableWidgetItem(dataTimeString));
+        ui->tableWidget->setItem(rowNum, 5, new QTableWidgetItem(QString::number(longitude, 'f', 6)));
+        ui->tableWidget->setItem(rowNum, 6, new QTableWidgetItem(QString::number(latitude, 'f', 6)));
+        ui->tableWidget->setItem(rowNum, 7, new QTableWidgetItem(QString("%1").arg((int)speed)));
+        ui->tableWidget->setItem(rowNum, 8, new QTableWidgetItem(QString("%1").arg(course)));
         ui->tableWidget->resizeColumnsToContents();
     }
 
@@ -260,27 +291,28 @@ void MainWindow::uiShowImeiData(const char *imei, char online_offline, int times
 
 int MainWindow::manager_imeiData(const void *msg)
 {
-    const MSG_IMEI_DATA_RSP *rsp = (const MSG_IMEI_DATA_RSP *)msg;
-    if(ntohs(rsp->header.length) != sizeof(MSG_IMEI_DATA_RSP) - MSG_HEADER_LEN)
+    const MANAGER_MSG_IMEI_DATA_RSP *rsp = (const MANAGER_MSG_IMEI_DATA_RSP *)msg;
+    if(ntohs(rsp->header.length) != sizeof(MANAGER_MSG_IMEI_DATA_RSP) - MANAGER_MSG_HEADER_LEN)
     {
         qDebug("imei data message length not enough");
         return -1;
     }
 
-    char imei[MAX_IMEI_LENGTH + 1];
-    memcpy(imei, rsp->imei_data.IMEI, MAX_IMEI_LENGTH);
-    imei[MAX_IMEI_LENGTH] = '\0'; //add '\0' for string operaton
+    char imei[MANAGER_MAX_IMEI_LENGTH + 1];
+    memcpy(imei, rsp->imei_data.IMEI, MANAGER_MAX_IMEI_LENGTH);
+    imei[MANAGER_MAX_IMEI_LENGTH] = '\0'; //add '\0' for string operaton
 
     char online_offline = rsp->imei_data.online_offline;
+    int version = rsp->imei_data.version;
     int timestamp = rsp->imei_data.gps.timestamp;
     float longitude = rsp->imei_data.gps.longitude;
     float latitude = rsp->imei_data.gps.latitude;
     char speed = rsp->imei_data.gps.speed;
     short course = rsp->imei_data.gps.course;
 
-    uiShowImeiData(imei, online_offline, timestamp, longitude, latitude, speed, course);
+    uiShowImeiData(imei, online_offline, version, timestamp, longitude, latitude, speed, course);
 
-    qDebug() << ntohs(rsp->header.signature) << (unsigned int)(rsp->header.cmd) << (unsigned int)(rsp->header.seq) << ntohs(rsp->header.length);
+    //qDebug() << ntohs(rsp->header.signature) << (unsigned int)(rsp->header.cmd) << (unsigned int)(rsp->header.seq) << ntohs(rsp->header.length);
     if(rsp->header.seq == (char)0xff)
     {
         //updata imei data loop
@@ -298,17 +330,185 @@ int MainWindow::manager_imeiData(const void *msg)
     return 0;
 }
 
+int MainWindow::manager_getLog(const void *msg)
+{
+    const MANAGER_MSG_GET_LOG_RSP *rsp = (const MANAGER_MSG_GET_LOG_RSP *)msg;
+    if(ntohs(rsp->header.length) < sizeof(MANAGER_MSG_GET_LOG_RSP) - MANAGER_MSG_HEADER_LEN)
+    {
+        qDebug("getLog message length not enough");
+        return -1;
+    }
+
+    qDebug("get manager getLog response, %s", rsp->data);
+
+    switch(QMessageBox::information(this, "information", QString("Get Log: %1").arg(rsp->data), QMessageBox::Ok | QMessageBox::Default, QMessageBox::Cancel | QMessageBox::Escape ))
+    {
+        case QMessageBox::Ok:
+            qDebug() << "QMessageBox::Ok";
+            break;
+        case QMessageBox::Cancel:
+            qDebug() << "QMessageBox::Cancel";
+            break;
+        default:
+            break;
+    }
+    return 0;
+}
+
+int MainWindow::manager_get433(const void *msg)
+{
+    const MANAGER_MSG_GET_433_RSP *rsp = (const MANAGER_MSG_GET_433_RSP *)msg;
+    if(ntohs(rsp->header.length) < sizeof(MANAGER_MSG_GET_433_RSP) - MANAGER_MSG_HEADER_LEN)
+    {
+        qDebug("get433 message length not enough");
+        return -1;
+    }
+
+    qDebug("get manager get433 response, %s", rsp->data);
+
+    switch(QMessageBox::information(this, "information", QString("Get 433: %1").arg(rsp->data), QMessageBox::Ok | QMessageBox::Default, QMessageBox::Cancel | QMessageBox::Escape ))
+    {
+        case QMessageBox::Ok:
+            qDebug() << "QMessageBox::Ok";
+            break;
+        case QMessageBox::Cancel:
+            qDebug() << "QMessageBox::Cancel";
+            break;
+        default:
+            break;
+    }
+    return 0;
+}
+
+int MainWindow::manager_getGSM(const void *msg)
+{
+    const MANAGER_MSG_GET_GSM_RSP *rsp = (const MANAGER_MSG_GET_GSM_RSP *)msg;
+    if(ntohs(rsp->header.length) < sizeof(MANAGER_MSG_GET_GSM_RSP) - MANAGER_MSG_HEADER_LEN)
+    {
+        qDebug("getGSM message length not enough");
+        return -1;
+    }
+
+    qDebug("get manager getGSM response, %s", rsp->data);
+
+    switch(QMessageBox::information(this, "information", QString("Get GSM: %1").arg(rsp->data), QMessageBox::Ok | QMessageBox::Default, QMessageBox::Cancel | QMessageBox::Escape ))
+    {
+        case QMessageBox::Ok:
+            qDebug() << "QMessageBox::Ok";
+            break;
+        case QMessageBox::Cancel:
+            qDebug() << "QMessageBox::Cancel";
+            break;
+        default:
+            break;
+    }
+    return 0;
+}
+
+int MainWindow::manager_getGPS(const void *msg)
+{
+    const MANAGER_MSG_GET_GPS_RSP *rsp = (const MANAGER_MSG_GET_GPS_RSP *)msg;
+    if(ntohs(rsp->header.length) < sizeof(MANAGER_MSG_GET_GPS_RSP) - MANAGER_MSG_HEADER_LEN)
+    {
+        qDebug("getGPS message length not enough");
+        return -1;
+    }
+
+    qDebug("get manager getGPS response, %s", rsp->data);
+
+    switch(QMessageBox::information(this, "information", QString("Get GPS: %1").arg(rsp->data), QMessageBox::Ok | QMessageBox::Default, QMessageBox::Cancel | QMessageBox::Escape ))
+    {
+        case QMessageBox::Ok:
+            qDebug() << "QMessageBox::Ok";
+            break;
+        case QMessageBox::Cancel:
+            qDebug() << "QMessageBox::Cancel";
+            break;
+        default:
+            break;
+    }
+    return 0;
+}
+
+int MainWindow::manager_getSetting(const void *msg)
+{
+    const MANAGER_MSG_GET_SETTING_RSP *rsp = (const MANAGER_MSG_GET_SETTING_RSP *)msg;
+    if(ntohs(rsp->header.length) < sizeof(MANAGER_MSG_GET_SETTING_RSP) - MANAGER_MSG_HEADER_LEN)
+    {
+        qDebug("getSetting message length not enough");
+        return -1;
+    }
+
+    qDebug("get manager getSetting response, %s", rsp->data);
+
+    switch(QMessageBox::information(this, "information", QString("Get Setting: %1").arg(rsp->data), QMessageBox::Ok | QMessageBox::Default, QMessageBox::Cancel | QMessageBox::Escape ))
+    {
+        case QMessageBox::Ok:
+            qDebug() << "QMessageBox::Ok";
+            break;
+        case QMessageBox::Cancel:
+            qDebug() << "QMessageBox::Cancel";
+            break;
+        default:
+            break;
+    }
+    return 0;
+}
+
+int MainWindow::manager_getBattery(const void *msg)
+{
+    const MANAGER_MSG_GET_BATTERY_RSP *rsp = (const MANAGER_MSG_GET_BATTERY_RSP *)msg;
+    if(ntohs(rsp->header.length) < sizeof(MANAGER_MSG_GET_BATTERY_RSP) - MANAGER_MSG_HEADER_LEN)
+    {
+        qDebug("getBattery message length not enough");
+        return -1;
+    }
+
+    qDebug("get manager getBattery response, %s", rsp->data);
+
+    switch(QMessageBox::information(this, "information", QString("Get Battery: %1").arg(rsp->data), QMessageBox::Ok | QMessageBox::Default, QMessageBox::Cancel | QMessageBox::Escape ))
+    {
+        case QMessageBox::Ok:
+            qDebug() << "QMessageBox::Ok";
+            break;
+        case QMessageBox::Cancel:
+            qDebug() << "QMessageBox::Cancel";
+            break;
+        default:
+            break;
+    }
+    return 0;
+}
+
 int MainWindow::handle_one_msg(const void *m)
 {
-    const MSG_HEADER *msg = (const MSG_HEADER *)m;
+    const MANAGER_MSG_HEADER *msg = (const MANAGER_MSG_HEADER *)m;
 
     switch(msg->cmd)
     {
-        case CMD_LOGIN:
+        case MANAGER_CMD_LOGIN:
             return manager_login(msg);
 
-        case CMD_IMEI_DATA:
+        case MANAGER_CMD_IMEI_DATA:
             return manager_imeiData(msg);
+
+        case MANAGER_CMD_GET_LOG:
+            return manager_getLog(msg);
+
+        case MANAGER_CMD_GET_433:
+            return manager_get433(msg);
+
+        case MANAGER_CMD_GET_GSM:
+            return manager_getGSM(msg);
+
+        case MANAGER_CMD_GET_GPS:
+            return manager_getGPS(msg);
+
+        case MANAGER_CMD_GET_SETTING:
+            return manager_getSetting(msg);
+
+        case MANAGER_CMD_GET_BATTERY:
+            return manager_getBattery(msg);
 
         default:
             return -1;
@@ -317,17 +517,17 @@ int MainWindow::handle_one_msg(const void *m)
 
 int MainWindow::handle_manager_msg(const char *m, size_t msgLen)
 {
-    const MSG_HEADER *msg = (const MSG_HEADER *)m;
+    const MANAGER_MSG_HEADER *msg = (const MANAGER_MSG_HEADER *)m;
 
-    if(msgLen < MSG_HEADER_LEN)
+    if(msgLen < MANAGER_MSG_HEADER_LEN)
     {
-        qDebug("message length not enough: %zu(at least(%zu))", msgLen, MSG_HEADER_LEN);
+        qDebug("message length not enough: %zu(at least(%zu))", msgLen, MANAGER_MSG_HEADER_LEN);
 
         return -1;
     }
     size_t leftLen = msgLen;
 
-    while(leftLen >= ntohs(msg->length) + MSG_HEADER_LEN)
+    while(leftLen >= ntohs(msg->length) + MANAGER_MSG_HEADER_LEN)
     {
         const unsigned char *status = (const unsigned char *)(&(msg->signature));
         if((status[0] != 0xaa) || (status[1] != 0x66))
@@ -339,8 +539,8 @@ int MainWindow::handle_manager_msg(const char *m, size_t msgLen)
             handle_one_msg(msg);
         }
 
-        leftLen = leftLen - MSG_HEADER_LEN - ntohs(msg->length);
-        msg = (const MSG_HEADER *)(m + msgLen - leftLen);
+        leftLen = leftLen - MANAGER_MSG_HEADER_LEN - ntohs(msg->length);
+        msg = (const MANAGER_MSG_HEADER *)(m + msgLen - leftLen);
     }
     return 0;
 }
@@ -360,22 +560,104 @@ void MainWindow::slotDataReceived()
     return;
 }
 
+void MainWindow::slotTableMenuAction(QAction *action)
+{
+    qDebug() << "slotTableMenuAction" << action->text();
+    QByteArray array_header;
+    QByteArray array_imei = QByteArray::fromHex(gCurrentImeiString.toLatin1().toHex());
+
+    if(action->text() == STR_UPDATA_IMEI)
+    {
+        array_header = QByteArray::fromHex("aa660222000f");
+    }
+    else if(action->text() == STR_GET_LOG)
+    {
+        array_header = QByteArray::fromHex("aa660333000f");
+    }
+    else if(action->text() == STR_GET_433)
+    {
+        array_header = QByteArray::fromHex("aa660444000f");
+    }
+    else if(action->text() == STR_GET_GSM)
+    {
+        array_header = QByteArray::fromHex("aa660555000f");
+    }
+    else if(action->text() == STR_GET_GPS)
+    {
+        array_header = QByteArray::fromHex("aa660666000f");
+    }
+    else if(action->text() == STR_GET_SETTING)
+    {
+        array_header = QByteArray::fromHex("aa660777000f");
+    }
+    else if(action->text() == STR_GET_BATTERY)
+    {
+        array_header = QByteArray::fromHex("aa660888000f");
+    }
+    else
+    {
+        if(action->text() == STR_REBOOT)
+        {
+            switch(QMessageBox::question(this, "warning", QString("Are you sure to reboot the device(%1)").arg(gCurrentImeiString), QMessageBox::Yes | QMessageBox::Default, QMessageBox::No | QMessageBox::Escape ))
+            {
+                case QMessageBox::Yes:
+                    qDebug() << "QMessageBox::Yes";
+                    array_header = QByteArray::fromHex("aa660999000f");
+                    break;
+                case QMessageBox::No:
+                    qDebug() << "QMessageBox::No";
+                    return;
+                default:
+                    break;
+            }
+        }
+        else if(action->text() == STR_UPGRADE)
+        {
+            switch(QMessageBox::question(this, "warning", QString("Are you sure to upgrade the device(%1)").arg(gCurrentImeiString), QMessageBox::Yes | QMessageBox::Default, QMessageBox::No | QMessageBox::Escape ))
+            {
+                case QMessageBox::Yes:
+                    qDebug() << "QMessageBox::Yes";
+                    array_header = QByteArray::fromHex("aa660aaa000f");
+                    break;
+                case QMessageBox::No:
+                    qDebug() << "QMessageBox::No";
+                    return;
+                default:
+                    break;
+            }
+        }
+    }
+
+    tcpSocket->write(array_header + array_imei);
+}
+
 void MainWindow::on_tableWidget_cellDoubleClicked(int row, int column)
 {
-    QString imeiString = ui->tableWidget->item(row, 0)->text();
-    qDebug() << "on_tableWidget_cellDoubleClicked:" << row << column << imeiString;
+    gCurrentImeiString = ui->tableWidget->item(row, 0)->text();
+    qDebug() << "on_tableWidget_cellDoubleClicked:" << row << column << gCurrentImeiString;
 
     if(column == 0) //get imei data
     {
-        QByteArray array_header = QByteArray::fromHex("aa660222000f");
-        QByteArray array_imei = QByteArray::fromHex(imeiString.toLatin1().toHex());
+        pTableMenu = new QMenu(ui->tableWidget);
+        pTableMenu->addAction(STR_UPDATA_IMEI);
+        pTableMenu->addSeparator();
+        pTableMenu->addAction(STR_GET_LOG);
+        pTableMenu->addAction(STR_GET_433);
+        pTableMenu->addAction(STR_GET_GSM);
+        pTableMenu->addAction(STR_GET_GPS);
+        pTableMenu->addAction(STR_GET_SETTING);
+        pTableMenu->addAction(STR_GET_BATTERY);
+        pTableMenu->addSeparator();
+        pTableMenu->addAction(STR_REBOOT);
+        pTableMenu->addAction(STR_UPGRADE);
 
-        tcpSocket->write(array_header + array_imei);
+        connect(pTableMenu, SIGNAL(triggered(QAction *)), this, SLOT(slotTableMenuAction(QAction *)));
+        pTableMenu->exec(QCursor::pos());
     }
 
     if(column == 1) //get event
     {
-        EventDialog event(this, imeiString, data_base);
+        EventDialog event(this, gCurrentImeiString, data_base);
         event.exec();
     }
 }
