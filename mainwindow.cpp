@@ -7,6 +7,7 @@
 #include <QDebug>
 #include <QDateTime>
 #include <QRegExp>
+#include <QInputDialog>
 #include <QMessageBox>
 
 #define STR_UPDATA_IMEI "Updata the specify imei data"
@@ -18,6 +19,7 @@
 #define STR_GET_BATTERY "Get battery"
 #define STR_REBOOT      "Reboot"
 #define STR_UPGRADE     "Upgrade"
+#define STR_CMD_AT      "cmd AT"
 
 QString gDefaultServer = QString("120.25.157.233:9898");
 QString gDefaultMysql = QString("120.25.157.233:3306");
@@ -594,37 +596,52 @@ void MainWindow::slotTableMenuAction(QAction *action)
     {
         array_header = QByteArray::fromHex("aa660888000f");
     }
-    else
+    else if(action->text() == STR_REBOOT)
     {
-        if(action->text() == STR_REBOOT)
+        switch(QMessageBox::question(this, "warning", QString("Are you sure to reboot the device(%1)").arg(gCurrentImeiString), QMessageBox::Yes | QMessageBox::Default, QMessageBox::No | QMessageBox::Escape ))
         {
-            switch(QMessageBox::question(this, "warning", QString("Are you sure to reboot the device(%1)").arg(gCurrentImeiString), QMessageBox::Yes | QMessageBox::Default, QMessageBox::No | QMessageBox::Escape ))
-            {
-                case QMessageBox::Yes:
-                    qDebug() << "QMessageBox::Yes";
-                    array_header = QByteArray::fromHex("aa660999000f");
-                    break;
-                case QMessageBox::No:
-                    qDebug() << "QMessageBox::No";
-                    return;
-                default:
-                    break;
-            }
+            case QMessageBox::Yes:
+                qDebug() << "QMessageBox::Yes";
+                array_header = QByteArray::fromHex("aa660999000f");
+                break;
+            case QMessageBox::No:
+                qDebug() << "QMessageBox::No";
+                return;
+            default:
+                break;
         }
-        else if(action->text() == STR_UPGRADE)
+    }
+    else if(action->text() == STR_UPGRADE)
+    {
+        switch(QMessageBox::question(this, "warning", QString("Are you sure to upgrade the device(%1)").arg(gCurrentImeiString), QMessageBox::Yes | QMessageBox::Default, QMessageBox::No | QMessageBox::Escape ))
         {
-            switch(QMessageBox::question(this, "warning", QString("Are you sure to upgrade the device(%1)").arg(gCurrentImeiString), QMessageBox::Yes | QMessageBox::Default, QMessageBox::No | QMessageBox::Escape ))
-            {
-                case QMessageBox::Yes:
-                    qDebug() << "QMessageBox::Yes";
-                    array_header = QByteArray::fromHex("aa660aaa000f");
-                    break;
-                case QMessageBox::No:
-                    qDebug() << "QMessageBox::No";
-                    return;
-                default:
-                    break;
-            }
+            case QMessageBox::Yes:
+                qDebug() << "QMessageBox::Yes";
+                array_header = QByteArray::fromHex("aa660aaa000f");
+                break;
+            case QMessageBox::No:
+                qDebug() << "QMessageBox::No";
+                return;
+            default:
+                break;
+        }
+    }
+    else if(action->text() == STR_CMD_AT)
+    {
+        bool isOK;
+        QByteArray ba;
+        QString text = QInputDialog::getText(NULL,"AT_CMD","AT Command", QLineEdit::Normal,NULL,&isOK);
+        if(isOK)
+        {
+            //print and read
+            //QMessageBox::information(NULL,"Information","Your　comment　is:　<b>"+text+"</b>",QMessageBox::Yes|QMessageBox::No,QMessageBox::Yes);
+            array_header = QByteArray::fromHex("aa660bbb000f");
+            tcpSocket->write(array_header + array_imei + text.toUtf8());
+            return;
+        }
+        else
+        {
+            return;
         }
     }
 
@@ -647,9 +664,11 @@ void MainWindow::on_tableWidget_cellDoubleClicked(int row, int column)
         pTableMenu->addAction(STR_GET_GPS);
         pTableMenu->addAction(STR_GET_SETTING);
         pTableMenu->addAction(STR_GET_BATTERY);
+        pTableMenu->addAction(STR_CMD_AT);
         pTableMenu->addSeparator();
         pTableMenu->addAction(STR_REBOOT);
         pTableMenu->addAction(STR_UPGRADE);
+
 
         connect(pTableMenu, SIGNAL(triggered(QAction *)), this, SLOT(slotTableMenuAction(QAction *)));
         pTableMenu->exec(QCursor::pos());
