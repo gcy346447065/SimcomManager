@@ -482,6 +482,30 @@ int MainWindow::manager_getBattery(const void *msg)
     return 0;
 }
 
+int MainWindow::manager_getAT(const void *msg)
+{
+    const MANAGER_MSG_GET_BATTERY_RSP *rsp = (const MANAGER_MSG_GET_BATTERY_RSP *)msg;
+    if(ntohs(rsp->header.length) < sizeof(MANAGER_MSG_GET_BATTERY_RSP) - MANAGER_MSG_HEADER_LEN)
+    {
+        qDebug("getAT message length not enough");
+        return -1;
+    }
+
+    qDebug("get manager getAT response, %s", rsp->data);
+
+    switch(QMessageBox::information(this, "information", QString("Get AT: %1").arg(rsp->data), QMessageBox::Ok | QMessageBox::Default, QMessageBox::Cancel | QMessageBox::Escape ))
+    {
+        case QMessageBox::Ok:
+            qDebug() << "QMessageBox::Ok";
+            break;
+        case QMessageBox::Cancel:
+            qDebug() << "QMessageBox::Cancel";
+            break;
+        default:
+            break;
+    }
+    return 0;
+}
 int MainWindow::handle_one_msg(const void *m)
 {
     const MANAGER_MSG_HEADER *msg = (const MANAGER_MSG_HEADER *)m;
@@ -511,6 +535,9 @@ int MainWindow::handle_one_msg(const void *m)
 
         case MANAGER_CMD_GET_BATTERY:
             return manager_getBattery(msg);
+
+        case MANAGER_CMD_GET_AT:
+            return manager_getAT(msg);
 
         default:
             return -1;
