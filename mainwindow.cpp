@@ -21,7 +21,10 @@
 #define STR_UPGRADE     "Upgrade"
 #define STR_CMD_AT      "cmd AT"
 
-QString gDefaultServer = QString("120.25.157.233:9898");
+
+
+//QString gDefaultServer = QString("121.42.38.93:9898");//调试服务器
+QString gDefaultServer = QString("120.25.157.233:9898");//正式服务器
 QString gDefaultMysql = QString("120.25.157.233:3306");
 QString gCurrentImeiString;
 
