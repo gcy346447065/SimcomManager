@@ -666,7 +666,7 @@ void MainWindow::slotTableMenuAction(QAction *action)
             //print and read
             //QMessageBox::information(NULL,"Information","Your　comment　is:　<b>"+text+"</b>",QMessageBox::Yes|QMessageBox::No,QMessageBox::Yes);
             array_header = QByteArray::fromHex("aa660bbb000f");
-            tcpSocket->write(array_header + array_imei + text.toUtf8());
+            tcpSocket->write(array_header + array_imei + text.toUtf8()+"\r");
             return;
         }
         else
